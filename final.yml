@@ -1,7 +1,7 @@
 ---
-- hosts: localhost
+- hosts: idx
   become: yes
-  become_user: elisha
+  become_user: root
   become_method: sudo
   gather_facts: no
   tasks:
