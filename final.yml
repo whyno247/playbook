@@ -1,0 +1,102 @@
+---
+- hosts: localhost
+  become: yes
+  become_user: elisha
+  become_method: sudo
+  gather_facts: no
+  tasks:
+     - name: splunk user
+       user:
+         name: splunkvz
+         state: present
+         comment: splunk system user
+         create_home: yes
+       become: yes
+       become_method: sudo
+       become_user: root
+
+     - name: Add splunk group
+       group:
+          name: splunk
+          state: present
+       become: yes
+       become_method: sudo
+       become_user: root
+
+     - name: "how user group"
+       command: grep splunkvz /etc/group
+       register: result
+       become: yes
+       become_method: sudo
+       become_user: root
+
+     - name: "show group name"
+       debug:
+         var: result.stdout_lines
+
+     - name: set up splunk user passwd
+       user:
+         name: splunkvz
+         password: 435EbnY60450E
+         shell: "/bin/bash"
+         uid: 2007
+       become: yes
+       become_method: sudo
+       become_user: root
+
+     - name: "Begin extracting splunk file to opt dir"
+       unarchive:
+          src: splunk-8.1.2-545206cc9f70-Linux-x86_64.tgz
+          dest: /opt/
+          owner: splunkvz
+          group: splunk
+       become: yes
+       become_method: sudo
+       become_user: root
+
+     - name: "chown  splunk bin dir"
+       command: chown -R splunkvz:splunk /opt/splunk/bin/
+       become_method: sudo
+       become_user: splunkvz
+
+     - name: splunk start accept license
+       shell: /opt/splunk/bin/splunk start --accept-license --answer-yes --auto-ports --no-prompt
+       become: yes
+       become_method: sudo
+       become_user: splunkvz
+
+     - name: stop splunkd service
+       shell: /opt/splunk/bin/splunk stop
+       become: yes
+       become_user: splunkvz
+       become_method: sudo
+
+     - name: "enable boot start"
+       command: sudo  /opt/splunk/bin/splunk enable boot-start -user splunkvz  --no-prompt
+       become: yes
+       become_method: sudo
+       become_user: root
+
+     - name: copy file to system level
+       copy:
+          src: user-seed.conf
+          dest: /opt/splunk/etc/system/local
+          owner: splunkvz
+          group: splunk
+       become: yes
+       become_user: splunkvz
+       become_method: sudo
+
+     - name: restart splunkd service
+       shell: /opt/splunk/bin/splunk restart
+       register: splunk_restart
+       until: splunk_restart.rc == 0 or 'splunk is runing' in splunk_restart.stdout
+       changed_when: splunk_restart.rc == 0
+       failed_when: splunk_restart.rc != 0 and 'splunk is running' not in splunk_restart.stdout
+       become: yes
+       become_method: sudo
+       become_user: splunkvz
+
+     - name: splunkd service is running now
+       debug:
+          var: splunk_restart.stdout_lines
